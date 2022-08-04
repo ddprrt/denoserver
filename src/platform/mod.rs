@@ -118,7 +118,7 @@ impl Default for Worker {
         Self::new(
             create_worker_options(),
             create_runtime(),
-            Duration::from_millis(500),
+            Duration::from_millis(5000),
         )
     }
 }
