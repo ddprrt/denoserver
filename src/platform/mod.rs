@@ -97,11 +97,12 @@ impl Worker {
             let mut worker =
                 MainWorker::bootstrap_from_options(main_module.clone(), permissions, self.options);
             worker.execute_main_module(&main_module).await.unwrap();
+            println!("Start event loop");
             if tokio::time::timeout(self.timeout, worker.run_event_loop(false))
                 .await
                 .is_err()
             {
-                println!("Runtime: Timeout {}", path);
+                println!("Runtime: Timeout event loop {}", path);
             } else {
                 println!(
                     "Runtime: Executing {} took {}ms",
