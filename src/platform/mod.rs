@@ -96,12 +96,12 @@ impl Worker {
             let permissions = Permissions::allow_all();
             let mut worker =
                 MainWorker::bootstrap_from_options(main_module.clone(), permissions, self.options);
-            worker.execute_main_module(&main_module).await.unwrap();
-            println!("Start event loop");
-            if tokio::time::timeout(self.timeout, worker.run_event_loop(false))
-                .await
-                .is_err()
-            {
+
+            let fut = async {
+                worker.execute_main_module(&main_module).await.unwrap();
+                worker.run_event_loop(false).await.unwrap();
+            };
+            if tokio::time::timeout(self.timeout, fut).await.is_err() {
                 println!("Runtime: Timeout event loop {}", path);
             } else {
                 println!(
@@ -119,7 +119,7 @@ impl Default for Worker {
         Self::new(
             create_worker_options(),
             create_runtime(),
-            Duration::from_millis(5000),
+            Duration::from_millis(1000),
         )
     }
 }
