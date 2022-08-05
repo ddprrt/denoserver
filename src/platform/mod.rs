@@ -18,7 +18,7 @@ use tokio::runtime::{self, Runtime};
 pub fn create_runtime() -> runtime::Runtime {
     runtime::Builder::new_current_thread()
         .enable_all()
-        .max_blocking_threads(12)
+        .max_blocking_threads(1)
         .build()
         .unwrap()
 }
