@@ -15,7 +15,7 @@ use deno_runtime::{
 };
 use tokio::runtime::{self, Runtime};
 
-pub fn create_runtime() -> runtime::Runtime {
+pub fn create_tokio_runtime() -> runtime::Runtime {
     runtime::Builder::new_current_thread()
         .enable_all()
         .max_blocking_threads(1)
@@ -73,7 +73,7 @@ pub fn create_worker_options() -> WorkerOptions {
 
 pub struct Worker {
     options: WorkerOptions,
-    runtime: Runtime,
+    tokio_runtime: Runtime,
     timeout: Duration,
 }
 
@@ -81,14 +81,14 @@ impl Worker {
     pub fn new(options: WorkerOptions, runtime: Runtime, timeout: Duration) -> Self {
         Self {
             options,
-            runtime,
+            tokio_runtime: runtime,
             timeout,
         }
     }
 
     pub fn execute(self, path: String) {
         let now = Instant::now();
-        self.runtime.block_on(async move {
+        self.tokio_runtime.block_on(async move {
             let js_path = Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("examples")
                 .join(path.clone());
@@ -118,8 +118,8 @@ impl Default for Worker {
     fn default() -> Self {
         Self::new(
             create_worker_options(),
-            create_runtime(),
-            Duration::from_millis(1000),
+            create_tokio_runtime(),
+            Duration::from_secs(1),
         )
     }
 }
