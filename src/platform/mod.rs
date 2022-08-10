@@ -2,6 +2,7 @@ use std::{
     path::Path,
     rc::Rc,
     sync::Arc,
+    thread,
     time::{Duration, Instant},
 };
 
@@ -96,10 +97,19 @@ impl Worker {
             let permissions = Permissions::allow_all();
             let mut worker =
                 MainWorker::bootstrap_from_options(main_module.clone(), permissions, self.options);
+            let handle = worker.js_runtime.v8_isolate().thread_safe_handle();
+            thread::spawn(move || {
+                thread::sleep(Duration::from_secs(2));
+                handle.terminate_execution();
+            });
 
             let fut = async {
-                worker.execute_main_module(&main_module).await.unwrap();
-                worker.run_event_loop(false).await.unwrap();
+                let a = worker.execute_main_module(&main_module).await;
+                let b = worker.run_event_loop(false).await;
+
+                if a.is_err() || b.is_err() {
+                    println!(":-) but actually :-(");
+                }
             };
             if tokio::time::timeout(self.timeout, fut).await.is_err() {
                 println!("Runtime: Timeout event loop {}", path);
