@@ -2,6 +2,7 @@ use std::{
     path::Path,
     rc::Rc,
     sync::Arc,
+    thread,
     time::{Duration, Instant},
 };
 
@@ -15,7 +16,7 @@ use deno_runtime::{
 };
 use tokio::runtime::{self, Runtime};
 
-pub fn create_runtime() -> runtime::Runtime {
+pub fn create_tokio_runtime() -> runtime::Runtime {
     runtime::Builder::new_current_thread()
         .enable_all()
         .max_blocking_threads(1)
@@ -73,7 +74,7 @@ pub fn create_worker_options() -> WorkerOptions {
 
 pub struct Worker {
     options: WorkerOptions,
-    runtime: Runtime,
+    tokio_runtime: Runtime,
     timeout: Duration,
 }
 
@@ -81,14 +82,14 @@ impl Worker {
     pub fn new(options: WorkerOptions, runtime: Runtime, timeout: Duration) -> Self {
         Self {
             options,
-            runtime,
+            tokio_runtime: runtime,
             timeout,
         }
     }
 
     pub fn execute(self, path: String) {
         let now = Instant::now();
-        self.runtime.block_on(async move {
+        self.tokio_runtime.block_on(async move {
             let js_path = Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("examples")
                 .join(path.clone());
@@ -96,12 +97,21 @@ impl Worker {
             let permissions = Permissions::allow_all();
             let mut worker =
                 MainWorker::bootstrap_from_options(main_module.clone(), permissions, self.options);
-            worker.execute_main_module(&main_module).await.unwrap();
-            println!("Start event loop");
-            if tokio::time::timeout(self.timeout, worker.run_event_loop(false))
-                .await
-                .is_err()
-            {
+            let handle = worker.js_runtime.v8_isolate().thread_safe_handle();
+            thread::spawn(move || {
+                thread::sleep(Duration::from_secs(2));
+                handle.terminate_execution();
+            });
+
+            let fut = async {
+                let a = worker.execute_main_module(&main_module).await;
+                let b = worker.run_event_loop(false).await;
+
+                if a.is_err() || b.is_err() {
+                    println!(":-) but actually :-(");
+                }
+            };
+            if tokio::time::timeout(self.timeout, fut).await.is_err() {
                 println!("Runtime: Timeout event loop {}", path);
             } else {
                 println!(
@@ -118,8 +128,8 @@ impl Default for Worker {
     fn default() -> Self {
         Self::new(
             create_worker_options(),
-            create_runtime(),
-            Duration::from_millis(5000),
+            create_tokio_runtime(),
+            Duration::from_secs(1),
         )
     }
 }
